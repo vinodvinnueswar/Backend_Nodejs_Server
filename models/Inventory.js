@@ -19,6 +19,9 @@ const inventorySchema = new mongoose.Schema({
     image:{
         type: String,
     },
+    webUrl:{
+        type: String,
+    },
     vendor:[{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Vendor'
