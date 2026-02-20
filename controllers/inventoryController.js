@@ -3,7 +3,6 @@ const Vendor = require('../models/Vendor');
 const multer = require("multer");
 
 // Cloudinary Storage Setup
-const multer = require("multer");
 
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
