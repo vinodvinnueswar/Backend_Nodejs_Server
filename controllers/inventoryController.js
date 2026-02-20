@@ -1,18 +1,11 @@
 const Inventory = require('../models/Inventory');
 const Vendor = require('../models/Vendor');
 const multer = require("multer");
-const { CloudinaryStorage } = require("multer-storage-cloudinary");
-const cloudinary = require("../config/cloudinary");
 
 // Cloudinary Storage Setup
-const storage = new CloudinaryStorage({
-  cloudinary: cloudinary,
-  params: {
-    folder: "inventory_images",
-    allowed_formats: ["jpg", "png", "jpeg", "webp"],
-  },
-});
+const multer = require("multer");
 
+const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
 // Adding Inventory
@@ -20,30 +13,45 @@ const addInventory = async (req, res) => {
   try {
     const { name, price, category, webUrl } = req.body;
 
-    const image = req.file ? req.file.path : null;
-
     const vendor = await Vendor.findById(req.vendorId);
 
     if (!vendor) {
-      return res.status(404).json({ message: 'Vendor not found' });
+      return res.status(404).json({ message: "Vendor not found" });
     }
 
-    const inventory = await Inventory.create({
-      name,
-      price,
-      category,
-      image,
-      vendor: vendor._id,
-      webUrl
-    });
+    let imageUrl = null;
 
-    vendor.inventory.push(inventory._id);
-    await vendor.save();
+    if (req.file) {
+      const result = await cloudinary.uploader.upload_stream(
+        { folder: "inventory_images" },
+        async (error, result) => {
+          if (error) {
+            return res.status(500).json({ error: error.message });
+          }
 
-    return res.status(200).json({
-      message: "Inventory added Successfully",
-      inventoryId: inventory._id
-    });
+          imageUrl = result.secure_url;
+
+          const inventory = await Inventory.create({
+            name,
+            price,
+            category,
+            image: imageUrl,
+            vendor: vendor._id,
+            webUrl,
+          });
+
+          vendor.inventory.push(inventory._id);
+          await vendor.save();
+
+          return res.status(200).json({
+            message: "Inventory added Successfully",
+            inventoryId: inventory._id,
+          });
+        }
+      );
+
+      result.end(req.file.buffer);
+    }
 
   } catch (error) {
     console.log(error);
@@ -70,6 +78,6 @@ const deleteInventoryById = async (req, res) => {
 };
 
 module.exports = {
-  addInventory: [upload.single('image'), addInventory],
-  deleteInventoryById
+  addInventory: [upload.single("image"), addInventory],
+  deleteInventoryById,
 };
