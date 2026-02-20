@@ -1,6 +1,7 @@
 const Inventory = require('../models/Inventory');
 const Vendor = require('../models/Vendor');
 const multer = require("multer");
+const cloudinary = require("cloudinary").v2;
 
 // Cloudinary Storage Setup
 
@@ -10,7 +11,7 @@ const upload = multer({ storage });
 // Adding Inventory
 const addInventory = async (req, res) => {
   try {
-    const { name, price, category, webUrl } = req.body;
+    const { name, price, category, webUrl} = req.body;
 
     const vendor = await Vendor.findById(req.vendorId);
 
