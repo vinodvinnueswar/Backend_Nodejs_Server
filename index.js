@@ -23,6 +23,7 @@ mongoose.connect(process.env.MONGO_URI)
 app.use(bodyParser.json());    
 app.use('/vendor' , vendorRoutes);
 app.use('/inventory' , inventoryRoutes);
+app.use('/uploads' , express.static('uploads'));
 
 app.listen(PORT , ()=>{
     console.log(`server started at ${PORT}`)

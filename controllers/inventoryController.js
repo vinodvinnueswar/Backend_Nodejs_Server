@@ -1,71 +1,49 @@
 const Inventory = require('../models/Inventory');
 const Vendor = require('../models/Vendor');
-const multer = require('multer');
-const bucket = require('../firebase');
+const multer = require("multer");
+const { CloudinaryStorage } = require("multer-storage-cloudinary");
+const cloudinary = require("../config/cloudinary");
 
-// Multer Memory Storage
-const storage = multer.memoryStorage();
-
-const upload = multer({
-  storage: storage,
-  limits: { fileSize: 5 * 1024 * 1024 }
+// Cloudinary Storage Setup
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: "inventory_images",
+    allowed_formats: ["jpg", "png", "jpeg", "webp"],
+  },
 });
 
-// 🔥 Add Inventory with Firebase Upload
+const upload = multer({ storage });
+
+// Adding Inventory
 const addInventory = async (req, res) => {
   try {
     const { name, price, category, webUrl } = req.body;
 
-    if (!req.file) {
-      return res.status(400).json({ message: "Image is required" });
+    const image = req.file ? req.file.path : null;
+
+    const vendor = await Vendor.findById(req.vendorId);
+
+    if (!vendor) {
+      return res.status(404).json({ message: 'Vendor not found' });
     }
 
-    // 🔥 Upload to Firebase
-    const fileName = Date.now() + "-" + req.file.originalname;
-    const file = bucket.file(fileName);
-
-    const stream = file.createWriteStream({
-      metadata: {
-        contentType: req.file.mimetype,
-      },
+    const inventory = await Inventory.create({
+      name,
+      price,
+      category,
+      image,
+      vendor: vendor._id,
+      webUrl
     });
 
-    stream.on("error", (err) => {
-      return res.status(500).json({ error: err.message });
+    vendor.inventory.push(inventory._id);
+    await vendor.save();
+
+    return res.status(200).json({
+      message: "Inventory added Successfully",
+      inventoryId: inventory._id
     });
-
-    stream.on("finish", async () => {
-      await file.makePublic();
-
-      const imageUrl = `https://storage.googleapis.com/${bucket.name}/${file.name}`;
-
-      // 🔥 Find Vendor
-      const vendor = await Vendor.findById(req.vendorId);
-
-      if (!vendor) {
-        return res.status(404).json({ message: 'Vendor not found' });
-      }
-
-      // 🔥 Save Inventory with Firebase Image URL
-      const inventory = await Inventory.create({
-        name,
-        price,
-        category,
-        image: imageUrl,   // ✅ SAVE FULL URL
-        vendor: vendor._id,
-        webUrl
-      });
-
-      vendor.inventory.push(inventory._id);
-      await vendor.save();
-
-      return res.status(200).json({
-        message: "Inventory added successfully",
-        inventoryId: inventory._id
-      });
-    });
-
-    stream.end(req.file.buffer);
 
   } catch (error) {
     console.log(error);
@@ -73,18 +51,17 @@ const addInventory = async (req, res) => {
   }
 };
 
-// 🔥 Delete Inventory
 const deleteInventoryById = async (req, res) => {
   try {
     const inventoryId = req.params.inventoryId;
 
-    const deleted = await Inventory.findByIdAndDelete(inventoryId);
+    const deletedInventory = await Inventory.findByIdAndDelete(inventoryId);
 
-    if (!deleted) {
+    if (!deletedInventory) {
       return res.status(404).json({ error: "Inventory Not Found" });
     }
 
-    return res.status(200).json({ message: "Inventory deleted successfully" });
+    return res.status(200).json({ message: "Deleted Successfully" });
 
   } catch (error) {
     console.log(error);
