@@ -2,6 +2,7 @@ const Inventory = require('../models/Inventory');
 const Vendor = require('../models/Vendor');
 const multer = require("multer");
 const cloudinary = require("cloudinary").v2;
+const path = require("path");
 const fs = require("fs");
 require("dotenv").config();
 
@@ -18,9 +19,9 @@ cloudinary.config({
    ✅ Multer Storage Setup
 ================================= */
 const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, "uploads/");
-  },
+ destination: function (req, file, cb) {
+  cb(null, path.join(__dirname, "../uploads"));
+},
   filename: function (req, file, cb) {
     cb(null, Date.now() + "-" + file.originalname);
   },
