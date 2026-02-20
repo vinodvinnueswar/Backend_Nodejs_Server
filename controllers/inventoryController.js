@@ -1,73 +1,98 @@
-
 const Inventory = require('../models/Inventory');
-const Vendor =  require('../models/Vendor');
-const multer = require('multer')
-const path = require('path')
+const Vendor = require('../models/Vendor');
+const multer = require('multer');
+const bucket = require('../firebase');
 
-// Multer Storage Setup
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, 'uploads/');
-  },
-  filename: function (req, file, cb) {
-    cb(null, Date.now() + '-' + file.originalname);
-  }
+// Multer Memory Storage
+const storage = multer.memoryStorage();
+
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 5 * 1024 * 1024 }
 });
 
-const upload = multer({ storage });
+// 🔥 Add Inventory with Firebase Upload
+const addInventory = async (req, res) => {
+  try {
+    const { name, price, category, webUrl } = req.body;
 
-// adding Inventory details
-const addInventory = async(req,res) => {
-   
-    try {
-         const {name,price,category,webUrl} = req.body;
-
-        const image = req.file ? req.file.filename : null;
-   
-
-    // Vendor Id 
-    const vendor = await Vendor.findById(req.vendorId);
-
-    if(!vendor){
-        return res.status(404).json({message: 'Vendor not found'})
+    if (!req.file) {
+      return res.status(400).json({ message: "Image is required" });
     }
 
-    const inventory = await Inventory.create({
-        name,price,category,image,vendor: vendor._id,webUrl
+    // 🔥 Upload to Firebase
+    const fileName = Date.now() + "-" + req.file.originalname;
+    const file = bucket.file(fileName);
+
+    const stream = file.createWriteStream({
+      metadata: {
+        contentType: req.file.mimetype,
+      },
     });
 
-    // const savedInventory = await inventory.save();
-    // const inventoryId = savedInventory._id;
+    stream.on("error", (err) => {
+      return res.status(500).json({ error: err.message });
+    });
 
-    vendor.inventory.push(inventory._id);
-    await vendor.save();
+    stream.on("finish", async () => {
+      await file.makePublic();
 
-    return res.status(200).json({message: "Inventory added Succesfully" ,inventoryId : inventory._id})
+      const imageUrl = `https://storage.googleapis.com/${bucket.name}/${file.name}`;
 
-    } catch (error) {
-        console.log(error)
-        return res.status(500).json("Internal server error")
-        
+      // 🔥 Find Vendor
+      const vendor = await Vendor.findById(req.vendorId);
+
+      if (!vendor) {
+        return res.status(404).json({ message: 'Vendor not found' });
+      }
+
+      // 🔥 Save Inventory with Firebase Image URL
+      const inventory = await Inventory.create({
+        name,
+        price,
+        category,
+        image: imageUrl,   // ✅ SAVE FULL URL
+        vendor: vendor._id,
+        webUrl
+      });
+
+      vendor.inventory.push(inventory._id);
+      await vendor.save();
+
+      return res.status(200).json({
+        message: "Inventory added successfully",
+        inventoryId: inventory._id
+      });
+    });
+
+    stream.end(req.file.buffer);
+
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json("Internal server error");
+  }
+};
+
+// 🔥 Delete Inventory
+const deleteInventoryById = async (req, res) => {
+  try {
+    const inventoryId = req.params.inventoryId;
+
+    const deleted = await Inventory.findByIdAndDelete(inventoryId);
+
+    if (!deleted) {
+      return res.status(404).json({ error: "Inventory Not Found" });
     }
-}
 
+    return res.status(200).json({ message: "Inventory deleted successfully" });
 
-const deleteInventoryById = async(req,res) => {
-     
-    try {
-        const inventoryId = req.params.inventoryId;
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
 
-    const deleteInventory = await Inventory.findByIdAndDelete(inventoryId);
-
-    if(!deleteInventory){
-        return res.status(404).json({error: "Inventory Not Found"})
-    }
-    } catch (error) {
-        console.log(error)
-        return res.status(500).json({error: "Internal server error"})
-        
-    }
-
-}
-
-module.exports = {addInventory : [upload.single('image'), addInventory] , deleteInventoryById}
+module.exports = {
+  addInventory: [upload.single('image'), addInventory],
+  deleteInventoryById
+};
