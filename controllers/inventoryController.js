@@ -45,7 +45,11 @@ const addInventory = async (req, res) => {
       image: imageUrl,
       vendor: vendor._id,
       webUrl,
-    });
+    });;
+
+    console.log("File:", req.file);
+console.log("Body:", req.body);
+console.log("VendorId:", req.vendorId);
 
     vendor.inventory.push(inventory._id);
     await vendor.save();
